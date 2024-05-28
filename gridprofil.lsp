@@ -54,7 +54,7 @@
 )
 
 ;/
-;markamker ; Ecris les repères de distance sur une polyligne 2D
+;markmaker ; Ecris les repères de distance sur une polyligne 2D
 ;@params: flatpoly (vl-object) ;Polyligne 2D
 ;         etape (int) ; Espacement des repères
 ;         longueur (real) ; Longueur de la polyligne
