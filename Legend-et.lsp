@@ -3,11 +3,13 @@
 ; legend-et.lsp (c) 2024
 ; Desc: Programme de création de légende automatique
 ; Créé:  2022
-; Modifié: 2024-05-23T20:15:58.498Z
+; Modifié: 2024-06-13T20:31:18.129Z
 ; Dois etre compiler avec legend-db.lsp 
 ;
 
-(defun c:legend-et ( / blname basecadre inbase lstblock lstlmod lstmod lstline lstall ins arbre *error* )
+(defun c:legend-et ( / blname basecadre inbase lstblock lstlmod lstmod
+                       lstline lstall ins arbre loop variateurx variateury
+                       tmpframe coordframe compt maxcol bot i y top *error*)
 
 ;;;Error handler personalisé pour rétablire les variables
   (defun *error* (msg)
@@ -35,23 +37,68 @@
   (MF:removedbline lstline)
 ;;Passe au dernier onglet de présentation du dessin.
   (setvar "ctab" (last (layoutlist)))
-;;Récupère le point d'insertion pour la légende
-  (setq ins (getpoint "Point d'insertion"))
+;;Boucle avec le cadre temporaire
+(setq loop t
+      variateurx 1  ;nombre de colonne
+      variateury (+ (* (sslength lstmod) 4) (* (sslength lstlmod) 5) 13)  ;Hauteur du cadre temporaire
+      compt (+ (sslength lstmod)(sslength lstlmod))) ;Compteur total d'element dans la légende
+(while (and (setq gr (grread t 12 0)) loop)
+  (cond
+    (
+      (= (car gr) 5)  ; Déplacement de souris
+        (and tmpframe (entdel tmpframe) (setq tmpframe nil))
+        (setq coordframe
+          (list
+            (list (car(cadr gr)) (cadr(cadr gr)))
+            (MF:addCoordDif (cadr gr) (* 60 variateurx) 0)
+            (MF:addCoordDif (cadr gr) (* 60 variateurx) variateury)
+            (MF:addCoordDif (cadr gr) 0 variateury)
+          )
+        )
+        (setq tmpframe (maker:frame coordframe "0"))  ;Créer le cadre temporaire
+    )
+    ((= (car gr) 2) ; Touche du clavier
+        (if (and (= (cadr gr) 43) (< variateurx compt)) ; Touche +, pas plus grand que le nombre d'élement dans la légende
+          (setq variateurx (1+ variateurx)
+                variateury (/ (+ (* (sslength lstmod) 4) (* (sslength lstlmod) 5) 13) variateurx)))
+        (if (and (= (cadr gr) 45)(> variateurx 1))  ; Touche -, pas plus petit que 1
+          (setq variateurx (1- variateurx)
+                variateury (/ (+ (* (sslength lstmod) 4) (* (sslength lstlmod) 5) 13) variateurx)))
+    )
+    ((= (car gr) 3) ; Clic de souris
+      (setq loop nil)
+      (setq ins (cadr gr))
+      (and tmpframe (entdel tmpframe) (setq tmpframe nil))
+    )
+  )
+)
+(setq maxcol (ceiling (/(+ (sslength lstmod)(sslength lstlmod)) variateurx 1.)))  ; Nombre de ligne max par colonne
 ;;;---------------------------Début algo principal---------------------------
 ;Préparation du cadre
   (setq insbase ins)
   (setq basecadre (list (+ 3.0 (nth 0 ins)) (nth 1 ins) 0.0))
   (setq ins (list (+ 10.0 (nth 0 ins)) (+ 3.0 (nth 1 ins)) 0.0))
+  (setq bot (cadr ins))
 ;Trace les lignes
+(setq y 0)
   (MF:ft_putline lstlmod)
   (command-s "._-layer" "_s" "PAP-TEXTE" "")
   (if (not(null lstmod))
 ;Trace les blocs
     (progn
-      (setq i 0)
-      (setq arbre 0)
+      (setq i 0
+            arbre 0
+            top (cadr ins))
       (setq ename (ssname lstmod i))
-     (while ename
+      (while ename
+        (if (= y maxcol)  ; Nombre de ligne max par colonne
+          (progn  
+            (if (< top (cadr ins))  ; Garde le point le plus haut de la liste de ligne
+              (setq top (cadr ins)))
+            (setq y 0
+                  ins (list (+ 60 (car ins)) bot))  ; Passe à la colonne suivante
+          )
+        )
         (setq canno (cond ;Vérifie si le bloc est annotatif
                       ((not (vl-annotative-getscales ename)) 1)
                       (t 1000)))
@@ -82,9 +129,11 @@
           (setq ins (list (nth 0 ins) (+ 4.0 (nth 1 ins)) 0.0))
 
         )))
-          (setq i (1+ i))
+          (setq i (1+ i)
+                y (1+ y))
           (setq ename (ssname lstmod i))
-      )   
+      )
+      (if (= variateurx 1)(setq top (cadr ins)))   
 ;Trace le cadre
     (MF:ft_putframe)
     )
@@ -210,7 +259,7 @@
 ; *
 (defun MF:ft_puttext (blname / txt instext)
     (command-s "._-layer" "_s" "PAP-TEXTE" "")
-    (setq instext  (list (+ 15.0 (nth 0 ins)) (nth 1 ins) 0.0))
+    (setq instext  (list (+ 13.0 (nth 0 ins)) (nth 1 ins) 0.0))
     (setq txt (MF:legend-db blname))
     (command-s "._TEXT" "_s" "arial" "_j" "mg" instext "2" "90" txt)
   (princ)  
@@ -219,11 +268,16 @@
 ; *
 ; MF:ft_putframe: Trace le cadre
 ; *
-(defun MF:ft_putframe ( / point1 point2 pointtxt lgd-frame title-frame)
+(defun MF:ft_putframe ( / point1 point2 pointtxt lgd-frame title-frame topline)
+
+
     (setvar 'clayer "PAP-TEXTE")
-    (setq point1 (list (+ 62.0 (nth 0 insbase)) (nth 1 ins))
+    (if (> variateurx 1)
+      (setq topline (rem compt 2))
+      (setq topline 0))
+    (setq point1 (list (+ (* variateurx 60.0) (nth 0 insbase)) top)
           point2 (list (nth 0 insbase) (+ 6.0 (nth 1 point1)))
-          pointtxt (list (+ 31.0 (nth 0 insbase)) (+ 3.0 (nth 1 point1)))
+          pointtxt (list (+ (/ (* variateurx 60.0)2) (nth 0 insbase)) (+ 3.0 (nth 1 point1)))
         )
 (command-s "_rectang" "_f" "1" insbase point1)
 (setq lgd-frame (entlast))
@@ -244,6 +298,9 @@
     (setq i 0)
     (setq ename (ssname lstlmod i))
     (while ename
+(if (= y maxcol)
+            (setq y 0
+                  ins (list (+ 60 (car ins)) bot)))
       (setq lname (cdr (assoc 8 (entget ename))))
       (setvar "clayer" lname)
 ;;Condition spéciales pour certaines lignes
@@ -256,7 +313,8 @@
         (t (command-s "._LINE" (list (- (nth 0 ins) 7.5) (nth 1 ins)) (list (+ 7.5 (nth 0 ins)) (nth 1 ins)) "")) 
       )
       (MF:ft_puttext lname)
-      (setq i (1+ i))
+      (setq i (1+ i)
+            y (1+ y))
       (setq ename (ssname lstlmod i))
       (setq ins (list (nth 0 ins) (+ 5.0 (nth 1 ins)) 0.0))
     )
