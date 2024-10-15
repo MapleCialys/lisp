@@ -3,7 +3,7 @@
 ; gridprofil.lsp (c) 2024
 ; Desc: Selectionne une polyligne, applique les marquages d'ingénieur et génère la grille de profile en fonction.
 ; Créé:  2024-05-01T20:51:18.698Z
-; Modifié: 2024-05-15T17:24:25.354Z
+; Modifié: 2024-06-05T20:20:51.309Z
 ; 
 
 ;/
@@ -54,7 +54,7 @@
 )
 
 ;/
-;markmaker ; Ecris les repères de distance sur une polyligne 2D
+;markamker ; Ecris les repères de distance sur une polyligne 2D
 ;@params: flatpoly (vl-object) ;Polyligne 2D
 ;         etape (int) ; Espacement des repères
 ;         longueur (real) ; Longueur de la polyligne
